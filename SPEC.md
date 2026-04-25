@@ -126,6 +126,26 @@ Start simple.
 **Important constraint:**
 This is a side-project-friendly system, so iteration speed matters more than elaborate agent stacks. A strong baseline with good evals is preferred over complicated orchestration.
 
+### Model target status
+
+Current discussion has converged on a useful **comparison ladder**, but not yet on a locked final model target.
+
+**Decided:**
+- mergeowl should be evaluated against a staged Qwen ladder rather than a single baseline.
+- `Qwen2.5-Coder-32B-Instruct` serves as the **anchor / lower baseline**.
+- `Qwen3.5-27B` serves as the **first serious target** for coding performance.
+- `Qwen3-Coder-*` and `Qwen3.6-*` serve as **upper reference models**, not day-one success criteria.
+
+**Not yet decided:**
+- mergeowl parameter count / active parameter budget
+- base architecture family
+- target context length
+- whether the goal is:
+  - roughly matching `Qwen3.5-27B` at similar scale, or
+  - achieving similar coding quality with a smaller / cheaper model
+
+That distinction matters because it changes the spec from a pure capability target into a capability-efficiency target.
+
 ### Evaluation
 
 We should evaluate for **precision first**, then recall.
@@ -141,8 +161,59 @@ Recommended eval slices:
 - dependency / config changes
 - security-sensitive patches
 
-Key metrics:
+#### Model benchmarking strategy
 
+For model-comparison work, the current spec is:
+
+**Phase 0 — anchor baseline**
+- `Qwen2.5-Coder-32B-Instruct`
+
+**Phase 1 — primary target**
+- `Qwen3.5-27B`
+
+**Phase 2 — stronger references**
+- `Qwen3.5-35B-A3B`
+- `Qwen3-Coder-30B-A3B-Instruct`
+- optional: `Qwen3-Coder-Next`
+
+**Phase 3 — upper references / stretch comparisons**
+- `Qwen3.6-27B`
+- `Qwen3.6-35B-A3B`
+- optional API-only reference: `Qwen3.6-Plus`
+
+Interpretation rule:
+- `Qwen2.5` answers "are we above an older lower baseline?"
+- `Qwen3.5` answers "are we competitive with a current practical open target?"
+- `Qwen3-Coder` / `Qwen3.6` answer "how far are we from stronger coding-specialized or latest-generation references?"
+
+#### Benchmark rollout
+
+The intended rollout is incremental, not all-at-once:
+
+1. **Pilot:** compare mergeowl vs `Qwen2.5-Coder-32B-Instruct` and `Qwen3.5-27B`
+2. **Use one coding benchmark first:** e.g. LiveCodeBench or HumanEval/MBPP
+3. **Lock one primary metric first:** e.g. `pass@1`
+4. **Expand only after the pilot is stable** to `Qwen3-Coder` and `Qwen3.6`
+
+This keeps the initial comparison cheap, legible, and hard to argue with.
+
+#### Evaluation contract
+
+At the spec level, cross-model comparisons must be run under **identical inference conditions**.
+
+That means the benchmark harness should hold constant, as much as practical:
+- prompt format
+- tool / scaffold policy
+- decoding settings
+- context budget
+- evaluation dataset version
+- execution and scoring rules
+
+Implementation details like engine choice or quantization can vary underneath, but the comparison contract is that results must be attributable to the model, not to changing eval conditions.
+
+#### Metrics
+
+Product-review metrics:
 - finding precision (how many comments are genuinely useful)
 - severe false positive rate
 - duplicate comment rate
@@ -150,12 +221,31 @@ Key metrics:
 - coverage of seeded bugs
 - reviewer preference score from human raters
 
+Coding-benchmark metrics:
+- `pass@1` on the chosen benchmark
+- latency / cost as a secondary reporting dimension
+- variance across reruns if stochastic decoding is used
+
 Simple rubric for each finding:
 
 - correct / incorrect
 - important / minor / irrelevant
 - grounded / weakly grounded / hallucinated
 - actionable / vague
+
+#### Success criteria status
+
+The direction is agreed; the exact numeric targets are **still open**.
+
+Before model work is considered spec-complete, we need to pin:
+- the mergeowl model size / architecture target
+- the exact primary coding benchmark
+- the exact success threshold, e.g.:
+  - `pass@1` within ±X% of `Qwen3.5-27B`, or
+  - absolute `pass@1 >= Y%`
+- the trigger for phase expansion, e.g.:
+  - if Phase 1 target is met, extend comparison to `Qwen3-Coder` / `Qwen3.6`
+  - otherwise iterate on the model before broadening eval scope
 
 ### Serving / operations
 
